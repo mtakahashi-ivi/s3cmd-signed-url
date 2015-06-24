@@ -11,7 +11,9 @@ usage() {
     echo "Options:"
     echo "  -b bucket_name: S3 Bucket"
     echo "  -o object_uri: URI part of object in S3 bucket - e.g. somefolder/somefile.ext"
-    echo "  -a access_key: S3 Access Key (default ${S3_ACCESS_KEY})"
+	echo "  -v http_verb: HTTP verb to access a object in S3 bucket (default ${HTTP_VERB})"
+	echo "  -c scheme: Scheme of url (default ${S3_SCHEME})"
+    echo "  -a access_key: S3 Access Key (default: Access key in ${HOME}/.s3cfg: ${S3_ACCESS_KEY})"
     echo "  -s seconds: how long the signed url will be valid (default ${SECONDS})"
     echo "  -h: to see this text"
 }
@@ -34,7 +36,7 @@ create_signed_url() {
     # 1-hour expiration
     TIMESTAMP=$((`date +%s` + ${SECONDS}))
     # string to sign: GET + expiration-time + bucket/object
-    local can_string="GET\n\n\n${TIMESTAMP}\n/${S3_BUCKET}/${S3_OBJECT}"
+    local can_string="${HTTP_VERB}\n\n\n${TIMESTAMP}\n/${S3_BUCKET}/${S3_OBJECT}"
     # generate the signature
     SIGNATURE=$(s3cmd sign "$(echo -e "$can_string")" | sed -n 's/^Signature: //p')
     if [ -z "$SIGNATURE" ]; then
@@ -44,7 +46,7 @@ create_signed_url() {
 }
 
 output() {
-    local base_url="https://${S3_BUCKET}.${S3_HOST_BASE}/${S3_OBJECT}"
+    local base_url="${S3_SCHEME}://${S3_HOST_BASE}/${S3_BUCKET}/${S3_OBJECT}"
     local params="AWSAccessKeyId=${S3_ACCESS_KEY}&Expires=${TIMESTAMP}&Signature=${SIGNATURE}"
     echo "$base_url?$params"
 }
@@ -52,8 +54,10 @@ output() {
 set_host_base
 set_access_key
 SECONDS=3600
+S3_SCHEME=https
+HTTP_VERB=GET
 
-while getopts "hb:o:a:s:" OPT; do
+while getopts "hb:o:a:s:v:c:" OPT; do
     case "$OPT" in
         h)
             usage
@@ -71,6 +75,12 @@ while getopts "hb:o:a:s:" OPT; do
         s)
             SECONDS="${OPTARG}"
             ;;
+	    v)
+	        HTTP_VERB="${OPTARG}"
+	        ;;
+		c)
+		    S3_SCHEME="${OPTARG}"
+		    ;;
     esac
 done
 
